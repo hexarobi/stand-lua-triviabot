@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.1"
+local SCRIPT_VERSION = "0.2"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -50,8 +50,9 @@ util.require_natives("3095a")
 local htmlEntities = require("htmlEntities")
 
 local config = {
-    time_to_answer = 40000,
-    delay_between_questions = 15000,
+    questions_per_round = 10,
+    time_to_answer = 50000,
+    delay_between_questions = 20000,
 }
 
 local triviabot = {}
@@ -88,7 +89,14 @@ triviabot.complete_question = function()
     if triviabot.state.remaining_questions > 0 then
         util.yield(config.delay_between_questions)
         triviabot.fetch_question()
+    else
+        triviabot.complete_game()
     end
+end
+
+triviabot.complete_game = function()
+    chat.send_message("That's the end of the game. To play again say !trivia", false, true, true)
+
 end
 
 triviabot.handle_loaded_question = function(question)
@@ -100,13 +108,13 @@ triviabot.handle_loaded_question = function(question)
         table.insert(possible_answers, question.correct_answer)
         question.question = question.question .. " " .. table.concat(shuffle(possible_answers), ", ")
     end
-    util.toast(question.question)
+    --util.toast(question.question)
     chat.send_message(htmlEntities.decode(question.question), false, true, true)
     question.asked_time = util.current_time_millis()
     question.expiration_time = util.current_time_millis() + config.time_to_answer
     util.yield(100)
     triviabot.state.question = question
-    util.toast(question.correct_answer)
+    --util.toast(question.correct_answer)
 end
 
 triviabot.fetch_question = function()
@@ -147,9 +155,9 @@ end)
 
 menu.my_root():action("Ask Trivia Question", {"trivia"}, "", function()
     if triviabot.state.question ~= nil then return end
-    triviabot.state.remaining_questions = 10
+    triviabot.state.remaining_questions = config.questions_per_round
     triviabot.fetch_question()
-end)
+end, nil, nil, COMMANDPERM_FRIENDLY)
 
 ---
 --- Runtime
