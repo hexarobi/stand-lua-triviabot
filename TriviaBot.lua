@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.3"
+local SCRIPT_VERSION = "0.4"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -90,8 +90,8 @@ local config = {
     questions_per_round = 10,
     time_to_answer = 60,
     delay_between_questions = 30,
-    question_set_index = 2,
-    use_team_chat = true,
+    question_set_index = 1,
+    use_team_chat = false,
     reward_correct_answers = true,
 }
 
@@ -303,22 +303,24 @@ end, nil, nil, COMMANDPERM_FRIENDLY)
 ---
 
 local settings_menu = menu.my_root():list("Settings")
-settings_menu:slider("Questions per game", {}, "How many questions should be asked per game", 1, 100, config.questions_per_round, 1, function(value)
-    config.questions_per_round = value
-end)
-settings_menu:toggle("Use Team Chat", {}, "Send trivia bot chat into team chat only", function(on)
-    config.use_team_chat = on
-end, config.use_team_chat)
-
 settings_menu:list_select("Question Set", {}, "Select which question set to draw from", question_set_selections, config.question_set_index, function(value)
     config.question_set_index = value
 end)
+settings_menu:slider("Questions per game", {}, "How many questions should be asked per game", 1, 100, config.questions_per_round, 1, function(value)
+    config.questions_per_round = value
+end)
+settings_menu:toggle("Reward Correct Answers", {}, "Use Stand's RP command to reward correct answers", function(on)
+    config.reward_correct_answers = on
+end, config.reward_correct_answers)
+settings_menu:toggle("Use Team Chat", {}, "Send trivia bot chat into team chat only", function(on)
+    config.use_team_chat = on
+end, config.use_team_chat)
 
 settings_menu:divider("Delays")
 settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 1, 120, config.time_to_answer, 1, function(value)
     config.time_to_answer = value
 end)
-settings_menu:slider("Answer Time", {"triviaanswertime"}, "Delay between an answer and the next question, in seconds", 1, 360, config.delay_between_questions, 1, function(value)
+settings_menu:slider("Question Time", {"triviaanswertime"}, "Delay after an answer before the next question is asked, in seconds", 1, 360, config.delay_between_questions, 1, function(value)
     config.delay_between_questions = value
 end)
 
