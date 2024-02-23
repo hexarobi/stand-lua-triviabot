@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.4"
+local SCRIPT_VERSION = "0.5"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -65,6 +65,7 @@ util.require_natives("3095a")
 ---
 
 local question_sets = {
+    -- Files from https://www.kaggle.com/datasets/prondeau/350000-jeopardy-questions?resource=download
     {
         name = "Kids & Teens",
         file = filesystem.scripts_dir().."resources/TriviaBot/kids_teen.tsv",
@@ -113,6 +114,9 @@ triviabot.start_game = function(num_questions)
     if num_questions == nil then num_questions = config.questions_per_round end
     triviabot.state.is_game_running = true
     triviabot.state.num_questions = num_questions
+    --if triviabot.state.num_questions > 1 then
+    --    triviabot.send_message("Starting a round of "..triviabot.state.num_questions.." trivia questions!")
+    --end
     triviabot.fetch_next_question()
 end
 
@@ -134,7 +138,8 @@ triviabot.complete_question = function()
     if triviabot.state.num_questions_asked == nil or triviabot.state.num_questions_asked >= triviabot.state.num_questions then
         triviabot.complete_game()
     else
-        util.yield(config.delay_between_questions * 1000)
+        local delay_time = config.delay_between_questions * 1000
+        util.yield(delay_time)
         triviabot.fetch_next_question()
     end
 end
