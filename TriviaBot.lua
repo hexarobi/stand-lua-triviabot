@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.5"
+local SCRIPT_VERSION = "0.6"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -89,12 +89,65 @@ end
 
 local config = {
     questions_per_round = 10,
-    time_to_answer = 60,
-    delay_between_questions = 30,
+    time_to_answer = 50,
+    delay_between_questions = 50,
     question_set_index = 1,
     use_team_chat = false,
     reward_correct_answers = true,
 }
+
+local diacritics = {}
+diacritics["à"] = "a"
+diacritics["á"] = "a"
+diacritics["â"] = "a"
+diacritics["ã"] = "a"
+diacritics["ä"] = "a"
+diacritics["ç"] = "c"
+diacritics["è"] = "e"
+diacritics["é"] = "e"
+diacritics["ê"] = "e"
+diacritics["ë"] = "e"
+diacritics["ì"] = "i"
+diacritics["í"] = "i"
+diacritics["î"] = "i"
+diacritics["ï"] = "i"
+diacritics["ñ"] = "n"
+diacritics["ò"] = "o"
+diacritics["ó"] = "o"
+diacritics["ô"] = "o"
+diacritics["õ"] = "o"
+diacritics["ö"] = "o"
+diacritics["ù"] = "u"
+diacritics["ú"] = "u"
+diacritics["û"] = "u"
+diacritics["ü"] = "u"
+diacritics["ý"] = "y"
+diacritics["ÿ"] = "y"
+diacritics["À"] = "A"
+diacritics["Á"] = "A"
+diacritics["Â"] = "A"
+diacritics["Ã"] = "A"
+diacritics["Ä"] = "A"
+diacritics["Ç"] = "C"
+diacritics["È"] = "E"
+diacritics["É"] = "E"
+diacritics["Ê"] = "E"
+diacritics["Ë"] = "E"
+diacritics["Ì"] = "I"
+diacritics["Í"] = "I"
+diacritics["Î"] = "I"
+diacritics["Ï"] = "I"
+diacritics["Ñ"] = "N"
+diacritics["Ò"] = "O"
+diacritics["Ó"] = "O"
+diacritics["Ô"] = "O"
+diacritics["Õ"] = "O"
+diacritics["Ö"] = "O"
+diacritics["Ù"] = "U"
+diacritics["Ú"] = "U"
+diacritics["Û"] = "U"
+diacritics["Ü"] = "U"
+diacritics["Ý"] = "Y"
 
 ---
 --- State
@@ -114,6 +167,8 @@ triviabot.start_game = function(num_questions)
     if num_questions == nil then num_questions = config.questions_per_round end
     triviabot.state.is_game_running = true
     triviabot.state.num_questions = num_questions
+    triviabot.state.num_questions_asked = 0
+    triviabot.state.scores = {}
     --if triviabot.state.num_questions > 1 then
     --    triviabot.send_message("Starting a round of "..triviabot.state.num_questions.." trivia questions!")
     --end
@@ -121,11 +176,25 @@ triviabot.start_game = function(num_questions)
 end
 
 triviabot.handle_correct_answer = function(pid)
-    triviabot.send_message("That's right, "..PLAYER.GET_PLAYER_NAME(pid).."! The answer was: "..triviabot.state.question.correct_answer)
+    triviabot.add_player_score(pid, triviabot.state.question.value)
+    local message = "That's right, "..PLAYER.GET_PLAYER_NAME(pid).."!"
+    message = message .. " The answer was: "..triviabot.state.question.correct_answer.."."
+    message = message .. " You've got $"..triviabot.get_player_score(pid)
+    triviabot.send_message(message)
     if config.reward_correct_answers then
         menu.trigger_commands("rp" .. players.get_name(pid))
     end
     triviabot.complete_question()
+end
+
+triviabot.add_player_score = function(pid, score)
+    if triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] == nil then triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] = 0 end
+    triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] = triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] + score
+end
+
+triviabot.get_player_score = function(pid)
+    if triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] == nil then triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] = 0 end
+    return triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)]
 end
 
 triviabot.handle_expired_answer_time = function()
@@ -146,7 +215,15 @@ end
 
 triviabot.complete_game = function()
     if triviabot.state.num_questions > 1 then
-        triviabot.send_message("That's the end of the game. To play again say !trivia")
+        local scores_message = "That's the end of the game. To play again say !trivia"
+        local scores_messages = {}
+        for player_name, score in triviabot.state.scores do
+            table.insert(scores_messages, player_name..": $"..score)
+        end
+        if scores_messages then
+            scores_message = scores_message.." Final Scores: \n"..table.concat(scores_messages, "\n")
+        end
+        triviabot.send_message(scores_message)
     end
     triviabot.state.is_game_running = false
 end
@@ -154,33 +231,66 @@ end
 triviabot.handle_loaded_question = function(question)
     if triviabot.state.question ~= nil then
         util.toast("Cannot load new question, already have one in play.")
+        return
     end
     triviabot.state.question = question
-    triviabot.send_message(triviabot.state.question.question)
-    triviabot.extend_correct_answers()
+    triviabot.send_message(triviabot.state.question.clue)
+    triviabot.state.question.correct_answers = {triviabot.state.question.correct_answer}
+    triviabot.extend_correct_answers(triviabot.state.question, triviabot.state.question.correct_answer)
     triviabot.state.question.asked_time = util.current_time_millis()
     triviabot.state.question.expiration_time = util.current_time_millis() + (config.time_to_answer * 1000)
-    util.yield(100)
     if triviabot.state.num_questions_asked == nil then triviabot.state.num_questions_asked = 0 end
     triviabot.state.num_questions_asked = triviabot.state.num_questions_asked + 1
-    util.log("Trivia Question: "..question.question.." Answer: "..question.correct_answer)
+    util.log(
+        "Trivia Question: #"..question.index_number.." "..question.clue
+                .." Answers:['"..table.concat(question.correct_answers, "', '").."']"
+    )
 end
 
-triviabot.extend_correct_answers = function()
-    local correct_answer = triviabot.state.question.correct_answer
-    triviabot.state.question.correct_answers = {correct_answer}
-    -- Remove any special characters
-    triviabot.add_correct_answer(correct_answer:gsub('[%p%c%s]', ''))
+-- Phase 1 high level rules, each of these will be run through phase 2 to find additional variants
+triviabot.extend_correct_answers = function(question, correct_answer)
+    -- Run phase 2 on answer
+    triviabot.extend_correct_answers_phase_2(question, correct_answer)
     -- Remove "a ", "an ", "the " prefixes
-    triviabot.add_correct_answer(correct_answer:gsub("^a ", ''))
-    triviabot.add_correct_answer(correct_answer:gsub("^an ", ''))
-    triviabot.add_correct_answer(correct_answer:gsub("^the ", ''))
+    triviabot.extend_correct_answers_phase_2(question, correct_answer:gsub("^a ", ''))
+    triviabot.extend_correct_answers_phase_2(question, correct_answer:gsub("^an ", ''))
+    triviabot.extend_correct_answers_phase_2(question, correct_answer:gsub("^the ", ''))
+    -- parts in parens are optional
+    triviabot.extend_correct_answers_phase_2(question, correct_answer:gsub('%b()', ''):gsub('^%s*(.-)%s*$', '%1'))
 end
 
-triviabot.add_correct_answer = function(answer)
+-- Phase 2 applies to each result from phase 1, more detailed
+triviabot.extend_correct_answers_phase_2 = function(question, correct_answer)
+    if correct_answer == nil or correct_answer == "" then return end
+    -- Add answer
+    triviabot.add_correct_answer(question, correct_answer)
+    -- Remove "a ", "an ", "the " prefixes
+    triviabot.add_correct_answer(question, correct_answer:gsub("^a ", ''))
+    triviabot.add_correct_answer(question, correct_answer:gsub("^an ", ''))
+    triviabot.add_correct_answer(question, correct_answer:gsub("^the ", ''))
+    -- Remove any special characters
+    triviabot.add_correct_answer(question, correct_answer:gsub('[%p%c]', ''))
+    -- replace dashes with spaces
+    triviabot.add_correct_answer(question, correct_answer:gsub('-', ' '))
+    -- replace number words with numerics
+    triviabot.add_correct_answer(question, correct_answer:gsub('one', '1'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('two', '2'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('three', '3'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('four', '4'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('five', '5'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('six', '6'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('seven', '7'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('eight', '8'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('nine', '9'))
+    triviabot.add_correct_answer(question, correct_answer:gsub('ten', '10'))
+    -- Remove diacritcs
+    triviabot.add_correct_answer(question, correct_answer:gsub("[%z\1-\127\194-\244][\128-\191]*", diacritics))
+end
+
+triviabot.add_correct_answer = function(question, answer)
     if answer == nil or answer == "" then return end
-    if not triviabot.is_in(answer, triviabot.state.question.correct_answers) then
-        table.insert(triviabot.state.question.correct_answers, answer)
+    if not triviabot.is_in(answer, question.correct_answers) then
+        table.insert(question.correct_answers, answer)
     end
 end
 
@@ -203,26 +313,28 @@ end
 
 triviabot.fetch_question_jeopardy = function()
     local question_set = question_sets[config.question_set_index]
-    local question_number = math.random(1, question_set.num_questions)
-    local question_line = triviabot.get_nth_line(question_set.file, question_number)
+    local index_number = math.random(1, question_set.num_questions)
+    local question_line = triviabot.get_nth_line(question_set.file, index_number)
     local question_parts = string.split(question_line, "\t")
     local question = {
+        index_number=index_number,
         round=question_parts[1],
-        value=question_parts[2],
+        value=tonumber(question_parts[2]),
         daily_double=question_parts[3],
-        category=question_parts[4],
+        category=triviabot.clean_quotes(question_parts[4]),
         comments=question_parts[5],
-        correct_answer=question_parts[7],
+        correct_answer=triviabot.clean_quotes(question_parts[7]),
         raw_question=triviabot.clean_quotes(question_parts[6]),
         air_date=question_parts[8],
         notes=question_parts[9],
     }
-    question.question = question.category.." for $"..question.value..": "..question.raw_question
+    if question.value <= 0 then question.value = 1000 end
+    question.clue = question.category.." for $"..question.value..": "..question.raw_question
     triviabot.handle_loaded_question(question)
 end
 
 triviabot.clean_quotes = function(text)
-    return text:gsub('\\"', "\"")
+    return text:gsub('\\"', "\""):gsub('\\', "\'")
 end
 
 triviabot.get_nth_line = function(fileName, n)
@@ -243,6 +355,7 @@ end
 
 triviabot.check_answer = function(pid, given_answer)
     if triviabot.state.question == nil then return end
+    if triviabot.state.question.clue == given_answer then return end -- Ignore the clue itself as a potential answer
     for _, correct_answer in triviabot.state.question.correct_answers do
         if string.find(given_answer:lower(), correct_answer:lower()) then
             triviabot.handle_correct_answer(pid)
@@ -258,15 +371,15 @@ end
 --        local question = response_object["results"][1]
 --
 --        question.correct_answer = htmlEntities.decode(question.correct_answer)
---        question.question = htmlEntities.decode(question.question)
+--        question.clue = htmlEntities.decode(question.clue)
 --
 --        if question.type == "boolean" then
---            question.question = "True or False: "..question.question
+--            question.clue = "True or False: "..question.clue
 --        end
 --        if question.type == "multiple" then
 --            local possible_answers = question.incorrect_answers
 --            table.insert(possible_answers, question.correct_answer)
---            question.question = question.question .. " " .. table.concat(shuffle(possible_answers), ", ")
+--            question.clue = question.clue .. " " .. table.concat(shuffle(possible_answers), ", ")
 --        end
 --
 --        triviabot.handle_loaded_question(question)
@@ -290,6 +403,55 @@ end
 chat.on_message(function(pid, reserved, message_text, is_team_chat, networked, is_auto)
     triviabot.check_answer(pid, message_text)
 end)
+
+---
+--- Tests
+---
+
+triviabot.test_extend_correct_answers = function()
+    local test_cases = {
+        {
+            original="the CIA",
+            expected="CIA"
+        },
+        {
+            original="the CIA (Central Intelligence Agency)",
+            expected="CIA"
+        },
+        {
+            original="(Pablo) Picaso",
+            expected="Picaso"
+        },
+        {
+            original="one",
+            expected="1"
+        },
+        {
+            original="Pokémon",
+            expected="Pokemon"
+        }
+    }
+    local counter = {
+        run = 0,
+        passed = 0,
+        failed = 0,
+    }
+    for _, test_case in test_cases do
+        counter.run = counter.run + 1
+        local question = {
+            correct_answer=test_case.original,
+            correct_answers={},
+        }
+        triviabot.extend_correct_answers(question, question.correct_answer)
+        if not triviabot.is_in(test_case.expected, question.correct_answers) then
+            util.toast("Test Failed: "..test_case.expected.." not found in ["..table.concat(question.correct_answers, ", ").."]", TOAST_ALL)
+            counter.failed = counter.failed + 1
+        else
+            counter.passed = counter.passed + 1
+        end
+    end
+    util.toast("Tests Completed. Run:"..counter.run.." Passed:"..counter.passed.." Failed:"..counter.failed, TOAST_ALL)
+end
 
 ---
 --- Menus
@@ -327,6 +489,13 @@ settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given 
 end)
 settings_menu:slider("Question Time", {"triviaanswertime"}, "Delay after an answer before the next question is asked, in seconds", 1, 360, config.delay_between_questions, 1, function(value)
     config.delay_between_questions = value
+end)
+
+
+settings_menu:divider("Debug")
+local test_cases_menu = settings_menu:list("Test Cases")
+test_cases_menu:action("Extend Correct Answers", {"cleananswer"}, "Test the answer cleaning algorithm", function()
+    triviabot.test_extend_correct_answers()
 end)
 
 ---
