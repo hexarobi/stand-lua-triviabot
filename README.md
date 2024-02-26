@@ -23,7 +23,7 @@ TriviaBot [ALL] That's right Player! The answer was: Exodus
 # Install
 Option #1: Download the `TriviaBot.lua` file and save to your `Stand/Lua Scripts` folder. Any additional files should auto-download on first run. Internet access must be enabled before starting the script.
 
-Option #2: Download the project zip file and extract the contents of the `stand-lua-triviabot-main` folder into your `Stand/Lua Scripts` folder. Internet access is not required to be enabled with this option, but you will not recieve automated updates unless it is.
+Option #2: Download [the project zip file](https://github.com/hexarobi/stand-lua-triviabot/archive/refs/heads/main.zip) and extract the contents of the `stand-lua-triviabot-main` folder into your `Stand/Lua Scripts` folder. Internet access is not required to be enabled with this option, but you will not recieve automated updates unless it is.
 
 # How to Use
 Run the script by going to `Stand > Lua Scripts > TriviaBot`.
