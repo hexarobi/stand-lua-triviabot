@@ -12,7 +12,9 @@ TriviaBot [ALL] That's right Player! The answer was: Exodus
 
 # Features
 
-* Support for multple question sets: Kids & Teens or Full (Seasons 1-35)
+* Support for multple question sets:
+  - Kids & Teens (25,000 questions)
+  - Full: Seasons 1-35 (350,000 questions)
 * Smart answer matching attempts to accept common rephrasings of the given answer (still not always perfect)
 * General or Team Chat to avoid spamming the whole lobby
 * Leaderboard tracking
