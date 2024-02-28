@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.8"
+local SCRIPT_VERSION = "0.8.1"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -562,7 +562,7 @@ triviabot.refresh_status_menu = function()
         return
     end
     if triviabot.state.question == nil then
-        menus.status.menu_name = "Question "..(triviabot.state.num_questions_asked+1).." In"
+        menus.status.menu_name = "Next Question In"
         menus.status.value = tostring(triviabot.time_until_next_question())
         menus.clue.menu_name = "Remaining Questions"
         if config.question_limit > 0 then
@@ -573,10 +573,10 @@ triviabot.refresh_status_menu = function()
             menus.clue.value = "Unlimited"
         end
     else
-        menus.status.menu_name = "Question "..triviabot.state.num_questions_asked..": Time To Answer"
+        menus.status.menu_name = "Time To Answer"
         menus.status.value = tostring(triviabot.time_left_to_answer())
-        menus.clue.menu_name = tostring(triviabot.state.num_questions_asked)
-        menus.clue.value = triviabot.state.question.clue
+        menus.clue.menu_name = triviabot.state.question.clue
+        menus.clue.value = ""
         if config.show_answers_in_status then
             menus.clue.value = menus.clue.value.." Answer: "..triviabot.state.question.correct_answer
         end
