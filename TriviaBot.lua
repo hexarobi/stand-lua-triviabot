@@ -38,7 +38,7 @@ end
 ---
 
 local config = {
-    debug = true,
+    debug = false,
     question_limit = 0,
     missed_questions_shutoff = 5,
     time_to_answer = 50,
