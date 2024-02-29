@@ -1,57 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.8.1"
-
--- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
-local status, auto_updater = pcall(require, "auto-updater")
-if not status then
-    if not async_http.have_access() then
-        util.toast("Failed to install auto-updater. Internet access is disabled. To enable automatic updates, please stop the script then uncheck the `Disable Internet Access` option.")
-    else
-        local auto_update_complete = nil util.toast("Installing auto-updater...", TOAST_ALL)
-        async_http.init("raw.githubusercontent.com", "/hexarobi/stand-lua-auto-updater/main/auto-updater.lua",
-                function(raw_result, raw_headers, raw_status_code)
-                    local function parse_auto_update_result(result, headers, status_code)
-                        local error_prefix = "Error downloading auto-updater: "
-                        if status_code ~= 200 then util.toast(error_prefix..status_code, TOAST_ALL) return false end
-                        if not result or result == "" then util.toast(error_prefix.."Found empty file.", TOAST_ALL) return false end
-                        filesystem.mkdir(filesystem.scripts_dir() .. "lib")
-                        local file = io.open(filesystem.scripts_dir() .. "lib\\auto-updater.lua", "wb")
-                        if file == nil then util.toast(error_prefix.."Could not open file for writing.", TOAST_ALL) return false end
-                        file:write(result) file:close() util.toast("Successfully installed auto-updater lib", TOAST_ALL) return true
-                    end
-                    auto_update_complete = parse_auto_update_result(raw_result, raw_headers, raw_status_code)
-                end, function() util.toast("Error downloading auto-updater lib. Update failed to download.", TOAST_ALL) end)
-        async_http.dispatch() local i = 1 while (auto_update_complete == nil and i < 40) do util.yield(250) i = i + 1 end
-        if auto_update_complete == nil then error("Error downloading auto-updater lib. HTTP Request timeout") end
-        auto_updater = require("auto-updater")
-    end
-end
-if auto_updater == true then error("Invalid auto-updater lib. Please delete your Stand/Lua Scripts/lib/auto-updater.lua and try again") end
-
----
---- Auto Updater
----
-
-local auto_update_config = {
-    source_url="https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/TriviaBot.lua",
-    script_relpath=SCRIPT_RELPATH,
-    verify_file_begins_with="--",
-    dependencies= {
-        {
-            name = "Question Set: Kids & Teens",
-            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/kids_teen.tsv",
-            script_relpath = "resources/TriviaBot/kids_teen.tsv",
-        },
-        {
-            name = "Question Set: Full Seasons 1-35",
-            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/master_season1-35.tsv",
-            script_relpath = "resources/TriviaBot/master_season1-35.tsv",
-        },
-    },
-}
-auto_updater.run_auto_update(auto_update_config)
+local SCRIPT_VERSION = "0.8.1r"
 
 ---
 --- Dependencies
@@ -88,7 +38,7 @@ end
 ---
 
 local config = {
-    debug = false,
+    debug = true,
     question_limit = 0,
     missed_questions_shutoff = 5,
     time_to_answer = 50,
@@ -635,10 +585,10 @@ settings_menu:action("Play Trivia", {"trivia"}, "Alternative way to start a game
 end, nil, nil, COMMANDPERM_FRIENDLY)
 
 settings_menu:divider("Delays")
-settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 1, 120, config.time_to_answer, 1, function(value)
+settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 10, 120, config.time_to_answer, 1, function(value)
     config.time_to_answer = value
 end)
-settings_menu:slider("Question Time", {"triviaquestiontime"}, "Delay after an answer before the next question is asked, in seconds", 1, 3800, config.delay_between_questions, 1, function(value)
+settings_menu:slider("Question Time", {"triviaquestiontime"}, "Delay after an answer before the next question is asked, in seconds", 10, 3800, config.delay_between_questions, 1, function(value)
     config.delay_between_questions = value
 end)
 
