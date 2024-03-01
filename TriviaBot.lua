@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.8.1"
+local SCRIPT_VERSION = "0.9"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -100,6 +100,8 @@ local config = {
     allow_chat_command_start = true,
     tick_handler_delay = 1000,
 }
+
+local menus = {}
 
 local diacritics = {}
 diacritics["à"] = "a"
@@ -262,7 +264,7 @@ triviabot.complete_question = function()
 end
 
 triviabot.complete_game = function()
-    if triviabot.state.num_questions > 1 then
+    if triviabot.state.num_questions_asked == nil or triviabot.state.num_questions_asked > 1 then
         local scores_message = "That's the end of the game. To play again say !trivia"
         if triviabot.state.scores and #triviabot.state.scores > 0 then
             local scores_messages = {}
@@ -352,7 +354,6 @@ triviabot.is_in = function(needle, haystack)
 end
 
 triviabot.send_message = function(message)
-    debug_log(message)
     chat.send_message(message, config.use_team_chat, true, true)
 end
 
@@ -447,7 +448,7 @@ triviabot.answer_time_tick = function()
 end
 
 triviabot.time_until_next_question = function()
-    if triviabot.state.next_question_time == nil then return end
+    if triviabot.state.next_question_time == nil then return 0 end
     local time = math.floor((triviabot.state.next_question_time - util.current_time_millis()) / 1000)
     if time < 0 then time = 0 end
     return time
@@ -544,12 +545,6 @@ triviabot.test_extend_correct_answers = function()
 end
 
 ---
---- Menus
----
-
-local menus = {}
-
----
 --- Rebuild Status Menu
 ---
 
@@ -628,22 +623,26 @@ end, config.show_answers_in_status)
 settings_menu:toggle("Allow Chat Command Start", {}, "Allow !trivia chat command to start a game of trivia. Friendly chat commands must be enabled under Online>Chat>Commands", function(on)
     config.allow_chat_command_start = on
 end, config.allow_chat_command_start)
-settings_menu:action("Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
+settings_menu:action("Chat Command to Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
     if config.allow_chat_command_start then
+        menus.play_trivia.value = true
         triviabot.start_game()
     end
 end, nil, nil, COMMANDPERM_FRIENDLY)
 
 settings_menu:divider("Delays")
-settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 1, 120, config.time_to_answer, 1, function(value)
+settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 10, 120, config.time_to_answer, 1, function(value)
     config.time_to_answer = value
 end)
-settings_menu:slider("Question Time", {"triviaquestiontime"}, "Delay after an answer before the next question is asked, in seconds", 1, 3800, config.delay_between_questions, 1, function(value)
+settings_menu:slider("Question Time", {"triviaquestiontime"}, "Delay after an answer before the next question is asked, in seconds", 10, 3800, config.delay_between_questions, 1, function(value)
     config.delay_between_questions = value
 end)
 
 
 settings_menu:divider("Debug")
+settings_menu:toggle("Debug Mode", {}, "When on, will include details of activity in logs", function(on)
+    config.debug = on
+end, config.debug)
 local test_cases_menu = settings_menu:list("Test Cases")
 test_cases_menu:action("Extend Correct Answers", {"cleananswer"}, "Test the answer cleaning algorithm", function()
     triviabot.test_extend_correct_answers()
