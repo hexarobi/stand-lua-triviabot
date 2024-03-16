@@ -34,3 +34,14 @@ Select the `Play Trivia` option to start a game. The game will continue until th
 If the `Correct Answers Extend Game` option is on, then any correct answers within the last 3 questions of a game will extend the game by another 3 questions. This helps keep an active game keep going until people are done playing.
 
 ![Example Menu](https://i.imgur.com/iha3Ipz.png)
+
+# Add Custom Question Sets
+Question sets are Tab-Separated Values (TSV) files located in `Stand/Lua Scripts/resources/TriviaBot/questions`.
+Each file must have at minimum a `question` and `answer` column. They may optionally include a `category` and `value` column.
+
+Example:
+```
+question	answer
+What is 7 + 3?	10
+What is the capitol city of Texas?	Austin
+```
