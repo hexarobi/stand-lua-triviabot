@@ -1,7 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.9"
+local SCRIPT_VERSION = "0.11"
 
 -- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
 local status, auto_updater = pcall(require, "auto-updater")
@@ -40,14 +40,14 @@ local auto_update_config = {
     verify_file_begins_with="--",
     dependencies= {
         {
-            name = "Question Set: Kids & Teens",
-            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/kids_teen.tsv",
-            script_relpath = "resources/TriviaBot/kids_teen.tsv",
+            name = "Question Set: Easy (Teen & Celebrity)",
+            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/questions/Easy (Teen & Celebrity).tsv",
+            script_relpath = "resources/TriviaBot/questions/Easy (Teen & Celebrity).tsv",
         },
         {
-            name = "Question Set: Full Seasons 1-35",
-            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/master_season1-35.tsv",
-            script_relpath = "resources/TriviaBot/master_season1-35.tsv",
+            name = "Question Set: Hard (All)",
+            source_url = "https://raw.githubusercontent.com/hexarobi/stand-lua-triviabot/main/resources/TriviaBot/questions/Hard (All).tsv",
+            script_relpath = "resources/TriviaBot/questions/Hard (All).tsv",
         },
     },
 }
@@ -61,29 +61,6 @@ util.require_natives("3095a")
 --local inspect = require("inspect")
 
 ---
---- Question Set Files
----
-
-local question_sets = {
-    -- Files from https://www.kaggle.com/datasets/prondeau/350000-jeopardy-questions?resource=download
-    {
-        name = "Kids & Teens",
-        file = filesystem.scripts_dir().."resources/TriviaBot/kids_teen.tsv",
-        num_questions = 20800
-    },
-    {
-        name = "Full: Seasons 1-35",
-        file = filesystem.scripts_dir().."resources/TriviaBot/master_season1-35.tsv",
-        num_questions = 349642
-    },
-}
-
-local question_set_selections = {}
-for index, question_set in question_sets do
-    table.insert(question_set_selections, {index, question_set.name})
-end
-
----
 --- Config
 ---
 
@@ -94,67 +71,85 @@ local config = {
     time_to_answer = 50,
     delay_between_questions = 70,
     question_set_index = 1,
+    ask_full_categories = false,
     use_team_chat = false,
     reward_correct_answers = true,
     show_answers_in_status = false,
     allow_chat_command_start = true,
     tick_handler_delay = 1000,
+    -- Experimental
+    log_answers_in_database = false,
 }
 
+local function debug_log(message)
+    if config.debug then
+        util.log("[TriviaBot] "..message)
+    end
+end
+
+---
+--- Data
+---
+
+local triviabot = {}
+triviabot.state = {
+    is_game_running = false
+}
 local menus = {}
 
-local diacritics = {}
-diacritics["à"] = "a"
-diacritics["á"] = "a"
-diacritics["â"] = "a"
-diacritics["ã"] = "a"
-diacritics["ä"] = "a"
-diacritics["ç"] = "c"
-diacritics["è"] = "e"
-diacritics["é"] = "e"
-diacritics["ê"] = "e"
-diacritics["ë"] = "e"
-diacritics["ì"] = "i"
-diacritics["í"] = "i"
-diacritics["î"] = "i"
-diacritics["ï"] = "i"
-diacritics["ñ"] = "n"
-diacritics["ò"] = "o"
-diacritics["ó"] = "o"
-diacritics["ô"] = "o"
-diacritics["õ"] = "o"
-diacritics["ö"] = "o"
-diacritics["ù"] = "u"
-diacritics["ú"] = "u"
-diacritics["û"] = "u"
-diacritics["ü"] = "u"
-diacritics["ý"] = "y"
-diacritics["ÿ"] = "y"
-diacritics["À"] = "A"
-diacritics["Á"] = "A"
-diacritics["Â"] = "A"
-diacritics["Ã"] = "A"
-diacritics["Ä"] = "A"
-diacritics["Ç"] = "C"
-diacritics["È"] = "E"
-diacritics["É"] = "E"
-diacritics["Ê"] = "E"
-diacritics["Ë"] = "E"
-diacritics["Ì"] = "I"
-diacritics["Í"] = "I"
-diacritics["Î"] = "I"
-diacritics["Ï"] = "I"
-diacritics["Ñ"] = "N"
-diacritics["Ò"] = "O"
-diacritics["Ó"] = "O"
-diacritics["Ô"] = "O"
-diacritics["Õ"] = "O"
-diacritics["Ö"] = "O"
-diacritics["Ù"] = "U"
-diacritics["Ú"] = "U"
-diacritics["Û"] = "U"
-diacritics["Ü"] = "U"
-diacritics["Ý"] = "Y"
+local diacritics = {
+    ["à"] = "a",
+    ["á"] = "a",
+    ["â"] = "a",
+    ["ã"] = "a",
+    ["ä"] = "a",
+    ["ç"] = "c",
+    ["è"] = "e",
+    ["é"] = "e",
+    ["ê"] = "e",
+    ["ë"] = "e",
+    ["ì"] = "i",
+    ["í"] = "i",
+    ["î"] = "i",
+    ["ï"] = "i",
+    ["ñ"] = "n",
+    ["ò"] = "o",
+    ["ó"] = "o",
+    ["ô"] = "o",
+    ["õ"] = "o",
+    ["ö"] = "o",
+    ["ù"] = "u",
+    ["ú"] = "u",
+    ["û"] = "u",
+    ["ü"] = "u",
+    ["ý"] = "y",
+    ["ÿ"] = "y",
+    ["À"] = "A",
+    ["Á"] = "A",
+    ["Â"] = "A",
+    ["Ã"] = "A",
+    ["Ä"] = "A",
+    ["Ç"] = "C",
+    ["È"] = "E",
+    ["É"] = "E",
+    ["Ê"] = "E",
+    ["Ë"] = "E",
+    ["Ì"] = "I",
+    ["Í"] = "I",
+    ["Î"] = "I",
+    ["Ï"] = "I",
+    ["Ñ"] = "N",
+    ["Ò"] = "O",
+    ["Ó"] = "O",
+    ["Ô"] = "O",
+    ["Õ"] = "O",
+    ["Ö"] = "O",
+    ["Ù"] = "U",
+    ["Ú"] = "U",
+    ["Û"] = "U",
+    ["Ü"] = "U",
+    ["Ý"] = "Y"
+}
 
 local number_words = {
     {1, "one"},
@@ -170,23 +165,164 @@ local number_words = {
 }
 
 ---
---- State
+--- User Database
 ---
 
-local triviabot = {}
-triviabot.state = {
-    is_game_running = false
-}
+local db
+if config.log_answers_in_database then
+    db = require("file_database")
+    db.set_name("triviabot")
+end
+local user_db = {}
+
+user_db.load_user = function(pid)
+    local player_name = players.get_name(pid)
+    local user_data = db.load_data(player_name)
+    return user_db.apply_default_user_data(user_data)
+end
+
+user_db.save_user = function(pid, user_data)
+    db.save_data(players.get_name(pid), user_data)
+end
+
+user_db.apply_default_user_data = function(user_data)
+    if user_data == nil then user_data = {} end
+    if user_data.num_correct_answers == nil then user_data.num_correct_answers = 0 end
+    if user_data.total_winnings == nil then user_data.total_winnings = 0 end
+    if user_data.first_answer_at == nil then user_data.first_answer_at = util.current_unix_time_seconds() end
+    return user_data
+end
+
+user_db.log_players_score = function(pid, value)
+    if not config.log_answers_in_database then return end
+    local user_data = user_db.load_user(pid)
+    user_db.apply_default_user_data(user_data)
+    user_data.num_correct_answers = user_data.num_correct_answers + 1
+    user_data.total_winnings = user_data.total_winnings + value
+    user_db.save_user(pid, user_data)
+end
 
 ---
---- Functions
+--- Question Set Files
 ---
 
-local function debug_log(message)
-    if config.debug then
-        util.log("[TriviaBot] "..message)
+local question_sets = {}
+local question_set_directory = filesystem.scripts_dir().."resources/TriviaBot/questions"
+filesystem.mkdirs(question_set_directory)
+
+local function count_lines_in_file(filepath)
+    local f = io.open(filepath, "r")
+    local count = 1
+    for line in f:lines() do
+        if count % 10000 == 0 then util.yield() end
+        count = count + 1
+    end
+    f:close()
+    return count
+end
+
+local function build_headers(line)
+    local headers = {}
+    local column_names = string.split(line, "\t")
+    for column_number, column_name in column_names do
+        headers[column_name] = column_number
+    end
+    return headers
+end
+
+local function read_question_cell(question_parts, headers, column_header, default_value)
+    if headers[column_header] == nil then
+        if default_value then
+            return default_value
+        else
+            error("No column found in file: "..column_header)
+        end
+    end
+    return question_parts[headers[column_header]] or ""
+end
+
+local function read_questions_file(filepath)
+    local questions_rows = {}
+    local f = io.open(filepath, "r")
+    local count = 1
+    for line in f:lines() do
+        table.insert(questions_rows, line)
+        if count % 10000 == 0 then util.yield() end
+        count = count + 1
+    end
+    f:close()
+    return questions_rows
+end
+
+local function build_question_file_loading_message(count, total_lines)
+    local message = count
+    if total_lines ~= nil then
+        message = count.."/"..total_lines
+        local percentage = math.floor((count / total_lines) * 100)
+        if percentage >= 0 and percentage <= 100 then
+            message = message .. " [".. percentage .."%]"
+        end
+    end
+    return message
+end
+
+triviabot.build_question_from_line = function(line, headers)
+    local question_parts = string.split(line, "\t")
+    return {
+        --title=read_question_cell(question_parts, headers, 'title'),
+        value=tonumber(read_question_cell(question_parts, headers, 'value', 100)),
+        category=triviabot.clean_quotes(read_question_cell(question_parts, headers, 'category', "")),
+        --comments=read_question_cell(question_parts, headers, 'comments'),
+        correct_answer=triviabot.clean_quotes(read_question_cell(question_parts, headers, 'answer')),
+        raw_question=triviabot.clean_quotes(read_question_cell(question_parts, headers, 'question')),
+        --air_date=read_question_cell(question_parts, headers, 'air_date'),
+        --notes=read_question_cell(question_parts, headers, 'notes'),
+    }
+end
+
+triviabot.load_questions_from_file = function(filepath, filename)
+    local questions = {}
+    local headers = {}
+    local count = 1
+
+    menus.status.menu_name = "Status"
+    menus.status.value = "Loading Questions"
+    menus.clue.menu_name = filename
+    menus.clue.value = "Reading File..."
+
+    local question_rows = read_questions_file(filepath)
+    local total_lines = #question_rows
+    for _, line in question_rows do
+        if count == 1 then
+            headers = build_headers(line)
+        else
+            table.insert(questions, triviabot.build_question_from_line(line, headers))
+            if count % 10000 == 0 then
+                menus.clue.value = build_question_file_loading_message(count, total_lines)
+                util.yield(10)
+            end
+        end
+        count = count + 1
+    end
+    menus.clue.value = build_question_file_loading_message(count, total_lines)
+    debug_log("Loaded question set "..filename.." "..count.." questions")
+    return questions
+end
+
+triviabot.build_question_sets = function()
+    question_sets = {}
+    for _, filepath in ipairs(filesystem.list_files(question_set_directory)) do
+        if not filesystem.is_dir(filepath) then
+            local _, filename, ext = string.match(filepath, "(.-)([^\\/]-%.?)[.]([^%.\\/]*)$")
+            local question_set = { name=filename, file=filepath, has_loaded=false, }
+            table.insert(question_sets, question_set)
+        end
     end
 end
+
+---
+--- Game Functions
+---
 
 triviabot.start_game = function()
     if triviabot.state.is_game_running then return end
@@ -195,11 +331,9 @@ triviabot.start_game = function()
     triviabot.state.num_questions_asked = 0
     triviabot.state.incorrect_answers = 0
     triviabot.state.scores = {}
-    --if triviabot.state.num_questions > 1 then
-    --    triviabot.send_message("Starting a round of "..triviabot.state.num_questions.." trivia questions!")
-    --end
     triviabot.fetch_next_question()
-end
+    return true
+    end
 
 triviabot.ask_next_question = function()
     if not triviabot.state.is_game_running then return end
@@ -223,6 +357,7 @@ triviabot.handle_correct_answer = function(pid)
 end
 
 triviabot.add_player_score = function(pid, score)
+    user_db.log_players_score(pid, score)
     if triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] == nil then triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] = 0 end
     triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] = triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)] + score
     debug_log("New score for "..PLAYER.GET_PLAYER_NAME(pid).." $"..triviabot.state.scores[PLAYER.GET_PLAYER_NAME(pid)])
@@ -280,6 +415,10 @@ triviabot.complete_game = function()
     triviabot.state.is_game_running = false
 end
 
+triviabot.repeat_question = function()
+    triviabot.send_message(triviabot.state.question.clue)
+end
+
 triviabot.handle_loaded_question = function(question)
     if triviabot.state.question ~= nil then
         util.toast("Cannot load new question, already have one in play.")
@@ -293,14 +432,17 @@ triviabot.handle_loaded_question = function(question)
     triviabot.state.question.expiration_time = util.current_time_millis() + (config.time_to_answer * 1000)
     if triviabot.state.num_questions_asked == nil then triviabot.state.num_questions_asked = 0 end
     triviabot.state.num_questions_asked = triviabot.state.num_questions_asked + 1
+    triviabot.refresh_status_menu()
     debug_log(
-        "Question "..triviabot.state.num_questions_asked.."/"..config.question_limit.."/"..config.missed_questions_shutoff
-                .." #"..question.index_number.." "..question.clue
-                .." Answers:['"..table.concat(question.correct_answers, "', '").."']"
+"Question "..triviabot.state.num_questions_asked.."/"..config.question_limit.."/"..config.missed_questions_shutoff
+        .." "..question.clue
+        .." Answers:['"..table.concat(question.correct_answers, "', '").."']"
     )
 end
 
 triviabot.extend_correct_answers = function(question, correct_answer)
+    -- Force answer to lowercase
+    correct_answer = correct_answer:lower()
     -- Add answer
     triviabot.add_correct_answer(question, correct_answer)
     -- Remove "a ", "an ", "the ", "to " prefixes
@@ -330,11 +472,6 @@ triviabot.extend_correct_answers = function(question, correct_answer)
 
 end
 
--- Phase 2 applies to each result from phase 1, more detailed
-triviabot.extend_correct_answers_phase_2 = function(question, correct_answer)
-    if correct_answer == nil or correct_answer == "" then return end
-end
-
 triviabot.add_correct_answer = function(question, answer)
     if answer == nil or answer == "" then return end
     if not triviabot.is_in(answer, question.correct_answers) then
@@ -362,30 +499,65 @@ triviabot.fetch_next_question = function()
     triviabot.fetch_question_jeopardy()
 end
 
+triviabot.get_current_question_set = function()
+    return question_sets[config.question_set_index]
+end
+
+triviabot.ensure_question_set_has_loaded = function(question_set)
+    if question_set.is_loaded ~= true then
+        if question_set.is_loading == true then error("Cannot trigger load again while already loading") end
+        question_set.is_loading = true
+        question_set.questions = triviabot.load_questions_from_file(question_set.file, question_set.name)
+        question_set.is_loaded = true
+        question_set.is_loading = false
+    end
+end
+
 triviabot.fetch_question_jeopardy = function()
-    local question_set = question_sets[config.question_set_index]
-    local index_number = math.random(1, question_set.num_questions)
-    local question_line = triviabot.get_nth_line(question_set.file, index_number)
-    local question_parts = string.split(question_line, "\t")
-    local question = {
-        index_number=index_number,
-        round=question_parts[1],
-        value=tonumber(question_parts[2]),
-        daily_double=question_parts[3],
-        category=triviabot.clean_quotes(question_parts[4]),
-        comments=question_parts[5],
-        correct_answer=triviabot.clean_quotes(question_parts[7]),
-        raw_question=triviabot.clean_quotes(question_parts[6]),
-        air_date=question_parts[8],
-        notes=question_parts[9],
-    }
+    local question = triviabot.get_random_question_from_current_question_set()
     if question.value == nil or question.value <= 0 then question.value = 2000 end
     question.clue = question.category.." for $"..question.value..": "..question.raw_question
     triviabot.handle_loaded_question(question)
 end
 
+triviabot.get_random_question_from_current_question_set = function()
+    local question_set = triviabot.get_current_question_set()
+    triviabot.ensure_question_set_has_loaded(question_set)
+    if config.ask_full_categories and triviabot.state.last_question_index then
+        local last_question = question_set.questions[triviabot.state.last_question_index]
+        local next_index = triviabot.state.last_question_index + 1
+        local next_question = question_set.questions[next_index]
+        if last_question.category ~= "" and next_question and last_question.category == next_question.category then
+            triviabot.state.last_question_index = next_index
+            return next_question
+        end
+    end
+    local question_index = math.random(1, #question_set.questions)
+    if config.ask_full_categories then
+        question_index = triviabot.find_first_question_index_of_category(question_set, question_index)
+    end
+    local question = question_set.questions[question_index]
+    triviabot.state.last_question_index = question_index
+    return question
+end
+
+triviabot.find_first_question_index_of_category = function(question_set, question_index)
+    if question_set.questions[question_index] and question_set.questions[question_index].category ~= "" then
+        while question_set.questions[question_index] and question_set.questions[question_index - 1]
+                and question_set.questions[question_index].category == question_set.questions[question_index - 1].category do
+            question_index = question_index - 1
+        end
+    end
+    return question_index
+end
+
 triviabot.clean_quotes = function(text)
-    return text:gsub('\\"', "\""):gsub('\\', "\'")
+    local quoted_text = text:match("^\"(.*)\"$")
+    if quoted_text then
+        text = quoted_text:gsub('""', '"')
+    end
+    text = text:gsub('\\"', "\""):gsub('\\', "\'")
+    return text
 end
 
 triviabot.get_nth_line = function(fileName, n)
@@ -470,6 +642,16 @@ chat.on_message(function(pid, reserved, message_text, is_team_chat, networked, i
 end)
 
 ---
+--- Build Question Sets
+---
+
+triviabot.build_question_sets()
+local question_set_selections = {}
+for index, question_set in question_sets do
+    table.insert(question_set_selections, {index, question_set.name})
+end
+
+---
 --- Tests
 ---
 
@@ -493,7 +675,7 @@ triviabot.test_extend_correct_answers = function()
         },
         {
             original="9",
-            expected="nine"
+            expected="NINE"
         },
         {
             original="Pokémon",
@@ -511,6 +693,10 @@ triviabot.test_extend_correct_answers = function()
             original='Lewis & Clark',
             expected='lewis and clark',
         },
+        {
+            original='The Turn of the Screw',
+            expected='Turn of the Screw',
+        }
     }
     local counter = {
         run = 0,
@@ -549,6 +735,7 @@ end
 ---
 
 triviabot.refresh_status_menu = function()
+    if triviabot.get_current_question_set().is_loading == true then return end
     if triviabot.state.is_game_running == false then
         menus.play_trivia.value = false
         menus.status.value = "No Game Running"
@@ -583,16 +770,35 @@ end
 --- Main Menu
 ---
 
-menus.play_trivia = menu.my_root():toggle("Play Trivia", {"trivgame"}, "Check to start a round of trivia questions. When unchecked the game will end after the next question.", function(toggle)
+menus.play_trivia = menu.my_root():toggle("Play Trivia", {"trivia"}, "Check to start a round of trivia questions. When unchecked the game will end after the next question.", function(toggle, chat_type)
+    if (chat_type & CLICK_FLAG_CHAT == 0) and not config.allow_chat_command_start then return end
     triviabot.state.is_game_on = toggle
     if not triviabot.start_game() then
         util.toast("Cannot start a game right now")
     end
-end)
+end, false, COMMANDPERM_FRIENDLY)
 
 menu.my_root():divider("Game Status")
-menus.status= menu.my_root():readonly("Status", "No Game Running")
+menus.status = menu.my_root():readonly("Status", "No Game Running")
 menus.clue = menu.my_root():readonly("")
+
+menu.my_root():divider("Actions")
+menu.my_root():action("Repeat Question", {}, "", function()
+    if not triviabot.state.is_game_running then return end
+    if triviabot.state.question == nil then
+        util.toast("Cannot repeat question until a new question has been asked")
+        return
+    end
+    triviabot.repeat_question()
+end)
+menu.my_root():action("Ask Next Question", {}, "", function()
+    if not triviabot.state.is_game_running then return end
+    if triviabot.state.question ~= nil then
+        util.toast("Cannot ask another question until the current question is done")
+        return
+    end
+    triviabot.ask_next_question()
+end)
 
 ---
 --- Settings Menu
@@ -613,6 +819,10 @@ end)
 settings_menu:toggle("Reward Correct Answers", {}, "Use Stand's RP command to reward correct answers", function(on)
     config.reward_correct_answers = on
 end, config.reward_correct_answers)
+settings_menu:toggle("Ask Full Categories", {}, "Ask all questions in the category (usually 5) before finding a new random category", function(on)
+    config.ask_full_categories = on
+end, config.ask_full_categories)
+
 settings_menu:toggle("Use Team Chat", {}, "Send trivia bot chat into team chat only. Answers will still be accepted in any chat.", function(on)
     config.use_team_chat = on
 end, config.use_team_chat)
@@ -623,12 +833,12 @@ end, config.show_answers_in_status)
 settings_menu:toggle("Allow Chat Command Start", {}, "Allow !trivia chat command to start a game of trivia. Friendly chat commands must be enabled under Online>Chat>Commands", function(on)
     config.allow_chat_command_start = on
 end, config.allow_chat_command_start)
-settings_menu:action("Chat Command to Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
-    if config.allow_chat_command_start then
-        menus.play_trivia.value = true
-        triviabot.start_game()
-    end
-end, nil, nil, COMMANDPERM_FRIENDLY)
+--settings_menu:action("Chat Command to Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
+--    if config.allow_chat_command_start then
+--        menus.play_trivia.value = true
+--        triviabot.start_game()
+--    end
+--end, nil, nil, COMMANDPERM_FRIENDLY)
 
 settings_menu:divider("Delays")
 settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 10, 120, config.time_to_answer, 1, function(value)
