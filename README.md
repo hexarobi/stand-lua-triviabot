@@ -43,5 +43,5 @@ Example:
 ```
 question	answer
 What is 7 + 3?	10
-What is the capitol city of Texas?	Austin
+What is the capital city of Texas?	Austin
 ```
