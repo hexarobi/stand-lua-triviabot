@@ -36,7 +36,7 @@ If the `Correct Answers Extend Game` option is on, then any correct answers with
 ![Example Menu](https://i.imgur.com/iha3Ipz.png)
 
 # Add Custom Question Sets
-Question sets are Tab-Separated Values (TSV) files located in `Stand/Lua Scripts/resources/TriviaBot/questions`.
+Question sets are [Tab-Separated Values (TSV)](https://support.google.com/merchants/answer/160569?hl=en) files located in `Stand/Lua Scripts/resources/TriviaBot/questions`.
 Each file must have at minimum a `question` and `answer` column. They may optionally include a `category` and `value` column.
 
 Example:
