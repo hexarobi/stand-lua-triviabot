@@ -1,34 +1,7 @@
 -- TriviaBot
 -- by Hexarobi
 
-local SCRIPT_VERSION = "0.11"
-
--- Auto Updater from https://github.com/hexarobi/stand-lua-auto-updater
-local status, auto_updater = pcall(require, "auto-updater")
-if not status then
-    if not async_http.have_access() then
-        util.toast("Failed to install auto-updater. Internet access is disabled. To enable automatic updates, please stop the script then uncheck the `Disable Internet Access` option.")
-    else
-        local auto_update_complete = nil util.toast("Installing auto-updater...", TOAST_ALL)
-        async_http.init("raw.githubusercontent.com", "/hexarobi/stand-lua-auto-updater/main/auto-updater.lua",
-                function(raw_result, raw_headers, raw_status_code)
-                    local function parse_auto_update_result(result, headers, status_code)
-                        local error_prefix = "Error downloading auto-updater: "
-                        if status_code ~= 200 then util.toast(error_prefix..status_code, TOAST_ALL) return false end
-                        if not result or result == "" then util.toast(error_prefix.."Found empty file.", TOAST_ALL) return false end
-                        filesystem.mkdir(filesystem.scripts_dir() .. "lib")
-                        local file = io.open(filesystem.scripts_dir() .. "lib\\auto-updater.lua", "wb")
-                        if file == nil then util.toast(error_prefix.."Could not open file for writing.", TOAST_ALL) return false end
-                        file:write(result) file:close() util.toast("Successfully installed auto-updater lib", TOAST_ALL) return true
-                    end
-                    auto_update_complete = parse_auto_update_result(raw_result, raw_headers, raw_status_code)
-                end, function() util.toast("Error downloading auto-updater lib. Update failed to download.", TOAST_ALL) end)
-        async_http.dispatch() local i = 1 while (auto_update_complete == nil and i < 40) do util.yield(250) i = i + 1 end
-        if auto_update_complete == nil then error("Error downloading auto-updater lib. HTTP Request timeout") end
-        auto_updater = require("auto-updater")
-    end
-end
-if auto_updater == true then error("Invalid auto-updater lib. Please delete your Stand/Lua Scripts/lib/auto-updater.lua and try again") end
+local SCRIPT_VERSION = "0.12"
 
 ---
 --- Auto Updater
@@ -51,7 +24,12 @@ local auto_update_config = {
         },
     },
 }
-auto_updater.run_auto_update(auto_update_config)
+
+util.ensure_package_is_installed("lua/auto-updater")
+local auto_updater = require("auto-updater")
+if auto_updater == true then
+    auto_updater.run_auto_update(auto_update_config)
+end
 
 ---
 --- Dependencies
@@ -333,7 +311,7 @@ triviabot.start_game = function()
     triviabot.state.scores = {}
     triviabot.fetch_next_question()
     return true
-    end
+end
 
 triviabot.ask_next_question = function()
     if not triviabot.state.is_game_running then return end
@@ -382,17 +360,17 @@ triviabot.complete_question = function()
         debug_log("Game End: "..triviabot.state.incorrect_answers.." incorrect answers reached.")
         triviabot.complete_game()
 
-    -- Question Limit Shutoff
+        -- Question Limit Shutoff
     elseif config.question_limit > 0 and triviabot.state.num_questions_asked >= config.question_limit then
         debug_log("Game End: "..triviabot.state.num_questions_asked.." questions asked.")
         triviabot.complete_game()
 
-    -- Play box is no longer checked
+        -- Play box is no longer checked
     elseif triviabot.state.is_game_on ~= true then
         debug_log("Game End: Play Game toggle is no longer checked")
         triviabot.complete_game()
 
-    -- Else queue next question
+        -- Else queue next question
     else
         triviabot.state.next_question_time = util.current_time_millis() + (config.delay_between_questions * 1000)
     end
@@ -434,9 +412,9 @@ triviabot.handle_loaded_question = function(question)
     triviabot.state.num_questions_asked = triviabot.state.num_questions_asked + 1
     triviabot.refresh_status_menu()
     debug_log(
-"Question "..triviabot.state.num_questions_asked.."/"..config.question_limit.."/"..config.missed_questions_shutoff
-        .." "..question.clue
-        .." Answers:['"..table.concat(question.correct_answers, "', '").."']"
+            "Question "..triviabot.state.num_questions_asked.."/"..config.question_limit.."/"..config.missed_questions_shutoff
+                    .." "..question.clue
+                    .." Answers:['"..table.concat(question.correct_answers, "', '").."']"
     )
 end
 
@@ -628,7 +606,7 @@ end
 
 triviabot.next_question_tick = function()
     if triviabot.state.is_game_running
-        and triviabot.state.next_question_time ~= nil and triviabot.state.next_question_time < util.current_time_millis() then
+            and triviabot.state.next_question_time ~= nil and triviabot.state.next_question_time < util.current_time_millis() then
         triviabot.ask_next_question()
     end
 end
@@ -770,13 +748,14 @@ end
 --- Main Menu
 ---
 
-menus.play_trivia = menu.my_root():toggle("Play Trivia", {"trivia"}, "Check to start a round of trivia questions. When unchecked the game will end after the next question.", function(toggle, chat_type)
-    if (chat_type & CLICK_FLAG_CHAT == 0) and not config.allow_chat_command_start then return end
+menus.play_trivia = menu.my_root():toggle("Play Trivia", {"triviagame"}, "Check to start a round of trivia questions. When unchecked the game will end after the next question.", function(toggle, chat_type)
+    --if (chat_type & CLICK_FLAG_CHAT == 0) and not config.allow_chat_command_start then return end
+    --util.toast("Chatted ", TOAST_ALL)
     triviabot.state.is_game_on = toggle
     if not triviabot.start_game() then
         util.toast("Cannot start a game right now")
     end
-end, false, COMMANDPERM_FRIENDLY)
+end)
 
 menu.my_root():divider("Game Status")
 menus.status = menu.my_root():readonly("Status", "No Game Running")
@@ -833,12 +812,12 @@ end, config.show_answers_in_status)
 settings_menu:toggle("Allow Chat Command Start", {}, "Allow !trivia chat command to start a game of trivia. Friendly chat commands must be enabled under Online>Chat>Commands", function(on)
     config.allow_chat_command_start = on
 end, config.allow_chat_command_start)
---settings_menu:action("Chat Command to Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
---    if config.allow_chat_command_start then
---        menus.play_trivia.value = true
---        triviabot.start_game()
---    end
---end, nil, nil, COMMANDPERM_FRIENDLY)
+settings_menu:action("Chat Command to Play Trivia", {"trivia"}, "Alternative way to start a game. This is here to support chat commands.", function()
+    if config.allow_chat_command_start then
+        menus.play_trivia.value = true
+        triviabot.start_game()
+    end
+end, nil, nil, COMMANDPERM_FRIENDLY)
 
 settings_menu:divider("Delays")
 settings_menu:slider("Answer Time", {"triviaanswertime"}, "Amount of time given to answer a question, in seconds.", 10, 120, config.time_to_answer, 1, function(value)
